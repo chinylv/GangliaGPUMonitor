@@ -1,0 +1,54 @@
+#!/bin/sh
+# ^
+
+
+function send_gpu_status()
+{
+    GMETRIC="/usr/bin/gmetric"
+
+    while true;
+    do
+        aline=$(nvidia-smi -L | awk 'BEGIN{ cnt=0 } { ++cnt } END{ print cnt }')
+        count=$(echo "$aline")
+        #echo $count
+
+        for i in `seq 0 1 $[$count-1]`; do
+            cmd=$(nvidia-smi -q -g "$i")
+
+                proname[$i]=$(echo "$cmd" | egrep -i "Product Name.*\:" | sed 's/.*\: *\(.*\)$/\1/')
+                procnum[$i]=$(echo "$cmd" | egrep -i -c "Process ID.*\:")
+
+                gpupct[$i]=$(echo "$cmd" | egrep -i "GPU.[^0].*\:.[0-9\.]+ *%" | sed 's/[^0-9]*\([0-9\.]\+\) *%/\1/')
+                mempct[$i]=$(echo "$cmd" | egrep -i "Mem.[^0].*\:.[0-9\.]+ *%" | sed 's/[^0-9]*\([0-9\.]\+\) *%/\1/')
+                memtotal[$i]=$(echo "$cmd" | egrep -i "Total.*\:.[0-9\.]+ *MB" | sed 's/[^0-9]*\([0-9\.]\+\) *MB/\1/')
+                memutil[$i]=$(echo "$cmd" | egrep -i "Used *\:.[0-9\.]+ *MB" | sed 's/[^0-9]*\([0-9\.]\+\) *MB/\1/')
+                temp[$i]=$(echo "$cmd" | egrep -i "GPU.[^0].*\:.[0-9]+ *C" | sed 's/[^0-9]*\([0-9]\+\) *C/\1/')
+                fan[$i]=$(nvidia-smi -q -g 0 | egrep -i "Fan.[^0].*\:" | sed 's/.*\: *\(.*\)$/\1/')
+                pow[$i]=$(echo "$cmd" | egrep -i "Power Draw.*\:.[0-9\.]+ *W" | sed 's/[^0-9]*\([0-9\.]\+\) *W/\1/')
+                powtotal[$i]=$(echo "$cmd" | egrep -i "Default Power.*\:.[0-9\.]+ *W" | sed 's/[^0-9]*\([0-9\.]\+\) *W/\1/')
+
+                #echo proname: ${proname[$i]}
+                #echo procnum: ${procnum[$i]}
+
+                #echo gpupct:  ${gpupct[$i]}
+                #echo mempct:  ${mempct[$i]}
+                #echo memtotal:${memtotal[$i]}
+                #echo memutil: ${memutil[$i]}
+                #echo temp:    ${temp[$i]}
+                #echo fan:     ${fan[$i]}
+                #echo power:   ${pow[$i]}
+                #echo powtotal:${powtotal[$i]}
+
+                $GMETRIC -n GPU_USAGE_"$i" -v ${gpupct[$i]} -t uint16 -u '%' -g chin_gpu_ext
+                $GMETRIC -n MEM_USAGE_"$i" -v ${mempct[$i]}  -t uint16 -u '%' -g chin_gpu_ext
+                $GMETRIC -n TEMP_GPU_"$i" -v ${temp[$i]}  -t uint16 -u Celcius -g chin_gpu_ext
+                $GMETRIC -n Num_Procs_GPU_0 -v ${procnum[$i]} -t uint16 -u Procs -g chin_gpu_ext
+
+                #$GMETRIC -n FAN_GPU_0 -v $FAN_0  -t uint16 -u '%'
+        done
+
+    sleep 20 # sleep for 20 seconds
+    done
+}
+
+send_gpu_status
